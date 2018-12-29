@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 
+#
+# Assumptions:
+#    - the input directory contains a single series of sagittal images
+#    - the DICOM files have the extension dcm
+#    - the DICOM files are sorted in the directory (0001..0176 as filenames)
+#
+
 import os
 import pydicom as dicom
 import json
@@ -65,6 +72,9 @@ def main(argv):
     ArrayDicom  = numpy.zeros(ConstPixelDims, dtype=RefDs.pixel_array.dtype)
 
     # loop through all the DICOM files
+    # TODO: we should go through here twice, first time read in all the slices
+    #       next time we sort the slices (by slice location for example) and
+    #       import them into the volume
     #slices = []
     for filenameDCM in lstFilesDCM:
         # read the file
