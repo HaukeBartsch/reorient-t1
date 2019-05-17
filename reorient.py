@@ -3,18 +3,18 @@
 #
 # Assumptions:
 #    - the input directory contains a single series of sagittal images
-#    - the DICOM files have the extension dcm
-#    - the DICOM files are sorted in the directory (0001..0176 as filenames)
+# Based on Hauke's reorient.py
 #
+#Created by Feng Xue 05/15/2019
 
 import os
 import pydicom as dicom
-import json
+#import json
 import sys, getopt
 import numpy
 import copy
-import matplotlib.pyplot as plt
-from matplotlib import pyplot, cm
+#import matplotlib.pyplot as plt
+#from matplotlib import pyplot, cm
 from pydicom.uid import generate_uid
 
 
@@ -36,8 +36,8 @@ def main(argv):
            filepath = arg
         elif opt in ("-o", "--odir"):
            outputdir = arg
-    print('Input directory is \"%s\"' % filepath)
-    print('Output directory is \"%s\"' % outputdir)
+    #print('Input directory is \"%s\"' % filepath)
+    #print('Output directory is \"%s\"' % outputdir)
 
     if filepath == '':
         filepath = '/home/abcdproj1/data/DAL_ABCD_HPT/raw/MRIRAW_S022_PhantomTravelingHuman001CUB_20181026_154138_20181026.154138.247000_1/st001_ser0005/'
@@ -46,14 +46,26 @@ def main(argv):
         print("Error: provide -o outputdir")
         sys.exit(-1)
 
+    print("Reorienting DICOM files")
     print("Info: Try to find input DICOM files in %s" % filepath)
 
-    lstFilesDCM = []  # create an empty list
+    lstFilesDCM = numpy.array([])  # create an empty list
+    InstanceNumbers = numpy.array([])
     for dirName, subdirList, fileList in os.walk(filepath):
         for filename in fileList:
-            if ".dcm" in filename.lower():  # check whether the file's DICOM
-                lstFilesDCM.append(os.path.join(dirName,filename))
-
+            try:
+                ds = dicom.read_file(os.path.join(dirName,filename),stop_before_pixels=True)
+                if "EchoTime" in ds and "InstanceNumber" in ds:
+                    lstFilesDCM = numpy.append(lstFilesDCM,os.path.join(dirName,filename))
+                    InstanceNumbers = numpy.append(InstanceNumbers,ds.InstanceNumber)
+                else:
+                    print('%s is not a valid DICOM file' % filename)
+            except:
+                print('%s is not a DICOM file' % filename)
+    idx = numpy.argsort(InstanceNumbers)
+    lstFilesDCM = lstFilesDCM[idx]
+    InstanceNumbers = []
+    idx = []
 
     RefDs = dicom.read_file(lstFilesDCM[int(len(lstFilesDCM)/2)])
 
@@ -76,12 +88,15 @@ def main(argv):
     #       next time we sort the slices (by slice location for example) and
     #       import them into the volume
     #slices = []
+    idx=0
     for filenameDCM in lstFilesDCM:
         # read the file
         ds = dicom.read_file(filenameDCM)
         #slices.append(ds)
         # store the raw image data
-        ArrayDicom[:, :, lstFilesDCM.index(filenameDCM)] = ds.pixel_array
+        #ArrayDicom[:, :, lstFilesDCM.index(filenameDCM)] = ds.pixel_array
+        ArrayDicom[:, :, idx] = ds.pixel_array
+        idx += 1
 
     print("reading done...")
     #pyplot.figure(dpi=300)
@@ -94,8 +109,8 @@ def main(argv):
     # ArrayDICOM2 = ArrayDicom[:,:,::-1]
     tmp = ArrayDicom.copy()
     ArrayDICOM2 = numpy.transpose(tmp, (0, 2, 1))
-    print(ArrayDICOM2.shape)
-    print(RefDs.ImageOrientationPatient)
+    #print(ArrayDICOM2.shape)
+    #print(RefDs.ImageOrientationPatient)
 
 
     # write out 
@@ -149,7 +164,7 @@ def main(argv):
         metadata.SOPClassUID       = '1.2.840.10008.5.1.4.1.1.4' # MRI image storage
         metadata.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.4'
         fname_out = "/%s/%s_im%3.4i.dcm" % (outputdir, "output1", slice)  # sprintf('%s/%s_im%3.4i.dcm',output,inputname, i)
-        print("write slice %d as %s" % (slice, fname_out))
+        #print("write slice %d as %s" % (slice, fname_out))
         # print('%s - Writing DICOM images, %d of %d\r',fname_out,slice,  numpy.shape(ArrayDICOM2)[2])
         # dicomwrite(int16(dat(:,:,i)'), fname_out, metadata, 'CreateMode', 'copy')
         metadata.PixelData = ArrayDICOM2[:,:,slice].tobytes()
@@ -210,13 +225,15 @@ def main(argv):
         metadata.SOPClassUID       = '1.2.840.10008.5.1.4.1.1.4' # MRI image storage
         metadata.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.4'
         fname_out = "/%s/%s_im%3.4i.dcm" % (outputdir, "output2", slice)  # sprintf('%s/%s_im%3.4i.dcm',output,inputname, i)
-        print("write slice %d as %s" % (slice, fname_out))
+        #print("write slice %d as %s" % (slice, fname_out))
         # print('%s - Writing DICOM images, %d of %d\r',fname_out,slice,  numpy.shape(ArrayDICOM2)[2])
         # dicomwrite(int16(dat(:,:,i)'), fname_out, metadata, 'CreateMode', 'copy')
         metadata.PixelData = ArrayDICOM3[:,:,slice].tobytes()
         # we get an error message if we try to save as is. We have to delete these fields every single time
         del metadata[(0x0002,0x0000):(0x0003,0x0000)]
         dicom.filewriter.write_file(fname_out, metadata, write_like_original=True)
+
+    print('reoriented DICOM files were saved in: \"%s\"' % outputdir)
 
 
 if __name__ == "__main__":
