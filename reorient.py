@@ -56,12 +56,18 @@ def main(argv):
             try:
                 ds = dicom.read_file(os.path.join(dirName,filename),stop_before_pixels=True)
                 if "EchoTime" in ds and "InstanceNumber" in ds:
-                    lstFilesDCM = numpy.append(lstFilesDCM,os.path.join(dirName,filename))
-                    InstanceNumbers = numpy.append(InstanceNumbers,ds.InstanceNumber)
+                    if ds.InstanceNumber in InstanceNumbers:
+                        raise Exception("Error: Duplicated InstanceNumber found: %d" % ds.InstanceNumber)
+                    else:
+                        lstFilesDCM = numpy.append(lstFilesDCM,os.path.join(dirName,filename))
+                        InstanceNumbers = numpy.append(InstanceNumbers,ds.InstanceNumber)
                 else:
                     print('%s is not a valid DICOM file' % filename)
-            except:
+            except TypeError:
                 print('%s is not a DICOM file' % filename)
+            except Exception as inst:
+                print(inst)
+                sys.exit(-1)
     idx = numpy.argsort(InstanceNumbers)
     lstFilesDCM = lstFilesDCM[idx]
     InstanceNumbers = []
